@@ -18,3 +18,8 @@ Session.vim
 
 # Auto-generated tag files
 tags
+
+# Visual Studio
+/.vs/
+/out/
+/CMakeSettings.json
