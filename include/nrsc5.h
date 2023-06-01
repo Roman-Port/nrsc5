@@ -135,7 +135,8 @@ enum
     NRSC5_EVENT_ID3,
     NRSC5_EVENT_SIG,
     NRSC5_EVENT_LOT,
-    NRSC5_EVENT_SIS
+    NRSC5_EVENT_SIS,
+    NRSC5_EVENT_LOT_PROGRESS
 };
 
 enum
@@ -239,6 +240,24 @@ struct nrsc5_sis_dsd_t
  */
 typedef struct nrsc5_sis_dsd_t nrsc5_sis_dsd_t;
 
+/**  LOT file with a given port and LOT ID.
+ *
+ * Contains information about a file being received that may be in progress.
+ */
+struct nrsc5_aas_file_t
+{
+    unsigned int timestamp; // Timestamp used internally to clean up old lots.
+    char* name;             // Filename. Will be zero until the first data fragment is received. Consider invalid until size != 0.
+    uint32_t mime;          // Mime type. Will be zero until the first data fragment is received. Consider file invalid until mime != 0.
+    uint16_t lot;           // Lot ID.
+    uint32_t size;          // Size of the entire file. Will be zero until the first data fragment is received. Consider file invalid until size != 0.
+    uint8_t** fragments;    // Pointer to array of 256 fragments. Fragments are null if they have not yet been received, or are a pointer to an array of 256 bytes.
+};
+/**
+ * Defines a typename for struct nrsc5_aas_file_t
+ */
+typedef struct nrsc5_aas_file_t nrsc5_aas_file_t;
+
 /**  Incoming event from receiver.
  *
  * This event structure is passed to your application supplied
@@ -263,6 +282,7 @@ struct nrsc5_event_t
  * - `NRSC5_EVENT_SIG` : service information arrived, see `sig` member
  * - `NRSC5_EVENT_LOT` : LOT file data available, see `lot` member
  * - `NRSC5_EVENT_SIS` : station information, see `sis` member
+ * - `NRSC5_EVENT_LOT_PROGRESS` : LOT file data segment received
  */
     unsigned int event;
     union
@@ -328,6 +348,12 @@ struct nrsc5_event_t
             nrsc5_sis_asd_t *audio_services;
             nrsc5_sis_dsd_t *data_services;
         } sis;
+        struct {
+            uint16_t port;
+            uint16_t lot;
+            uint32_t seq;
+            nrsc5_aas_file_t* file;
+        } lot_progress;
     };
 };
 /**
@@ -588,5 +614,16 @@ int nrsc5_pipe_samples_cu8(nrsc5_t *st, const uint8_t *samples, unsigned int len
  *
  */
 int nrsc5_pipe_samples_cs16(nrsc5_t *st, const int16_t *samples, unsigned int length);
+
+/**
+ * Finds the LOT file with the given port and lot ID.
+ *
+ * @param[in] ctx   Pointer to an `nrsc5_t` session object
+ * @param[in] port  The port ID to look in
+ * @param[in] lot   The lot ID to find
+ * @return A pointer to the lot if it was found, otherwise NULL
+ *
+ */
+nrsc5_aas_file_t* nrsc5_get_lot(nrsc5_t* ctx, uint16_t port, uint16_t lot);
 
 #endif /* NRSC5_H_ */

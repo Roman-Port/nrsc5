@@ -38,16 +38,6 @@ enum
 
 typedef struct
 {
-    unsigned int timestamp;
-    char *name;
-    uint32_t mime;
-    uint16_t lot;
-    uint32_t size;
-    uint8_t **fragments;
-} aas_file_t;
-
-typedef struct
-{
     uint16_t port;
     uint8_t type;
     unsigned int service_number;
@@ -65,7 +55,7 @@ typedef struct
         } stream;
         struct
         {
-            aas_file_t files[MAX_LOT_FILES];
+            nrsc5_aas_file_t files[MAX_LOT_FILES];
         } lot;
     };
 } aas_port_t;
@@ -116,3 +106,6 @@ void output_reset(output_t *st);
 void output_init(output_t *st, nrsc5_t *);
 void output_free(output_t *st);
 void output_aas_push(output_t *st, uint8_t *psd, unsigned int len);
+
+// Finds the file by the specified port and lot ID. Returns NULL if failed.
+nrsc5_aas_file_t* output_find_port_and_lot(output_t* st, uint16_t port_id, uint16_t lot_id);

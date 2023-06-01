@@ -559,6 +559,10 @@ NRSC5_API int nrsc5_pipe_samples_cs16(nrsc5_t *st, const int16_t *samples, unsig
     return 0;
 }
 
+NRSC5_API nrsc5_aas_file_t* nrsc5_get_lot(nrsc5_t* ctx, uint16_t port, uint16_t lot) {
+    return output_find_port_and_lot(&ctx->output, port, lot);
+}
+
 void nrsc5_report(nrsc5_t *st, const nrsc5_event_t *evt)
 {
     if (st->callback)
@@ -651,6 +655,17 @@ void nrsc5_report_lot(nrsc5_t *st, uint16_t port, unsigned int lot, unsigned int
     evt.lot.mime = mime;
     evt.lot.name = name;
     evt.lot.data = data;
+    nrsc5_report(st, &evt);
+}
+
+void nrsc5_report_lot_progress(nrsc5_t* st, uint16_t port, uint16_t lot, uint32_t seq, nrsc5_aas_file_t* file)
+{
+    nrsc5_event_t evt;
+    evt.event = NRSC5_EVENT_LOT_PROGRESS;
+    evt.lot_progress.port = port;
+    evt.lot_progress.lot = lot;
+    evt.lot_progress.seq = seq;
+    evt.lot_progress.file = file;
     nrsc5_report(st, &evt);
 }
 

@@ -52,7 +52,7 @@ void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int prog
 #endif
 }
 
-static void aas_free_lot(aas_file_t *file)
+static void aas_free_lot(nrsc5_aas_file_t *file)
 {
     free(file->name);
     if (file->fragments)
@@ -424,7 +424,7 @@ static aas_port_t *find_port(output_t *st, uint16_t port_id)
     return NULL;
 }
 
-static aas_file_t *find_lot(aas_port_t *port, unsigned int lot)
+static nrsc5_aas_file_t *find_lot(aas_port_t *port, unsigned int lot)
 {
     for (int i = 0; i < MAX_LOT_FILES; i++)
     {
@@ -436,11 +436,11 @@ static aas_file_t *find_lot(aas_port_t *port, unsigned int lot)
     return NULL;
 }
 
-static aas_file_t *find_free_lot(aas_port_t *port)
+static nrsc5_aas_file_t *find_free_lot(aas_port_t *port)
 {
     unsigned int min_timestamp = UINT_MAX;
     unsigned int min_idx = 0;
-    aas_file_t *file;
+    nrsc5_aas_file_t *file;
 
     for (int i = 0; i < MAX_LOT_FILES; i++)
     {
@@ -457,6 +457,20 @@ static aas_file_t *find_free_lot(aas_port_t *port)
     file = &port->lot.files[min_idx];
     aas_free_lot(file);
     return file;
+}
+
+nrsc5_aas_file_t* output_find_port_and_lot(output_t* st, uint16_t port_id, uint16_t lot_id) {
+    //Abort if we do not have SIG data
+    if (st->services[0].type == SIG_SERVICE_NONE)
+        return NULL;
+
+    //Find the port
+    aas_port_t* port = find_port(st, port_id);
+    if (port == NULL)
+        return NULL;
+
+    //Find the LOT from the port
+    return find_lot(port, lot_id);
 }
 
 static void process_port(output_t *st, uint16_t port_id, uint8_t *buf, unsigned int len)
@@ -542,11 +556,14 @@ static void process_port(output_t *st, uint16_t port_id, uint8_t *buf, unsigned 
     }
     case AAS_TYPE_LOT:
     {
+        //Make sure we have enough data for the lot header.
         if (len < 8)
         {
             log_warn("bad fragment (port %04X, len %d)", port_id, len);
             return;
         }
+
+        //Parse lot header and do some sanity checks on it.
         uint8_t hdrlen = buf[0];
         uint16_t lot = buf[2] | (buf[3] << 8);
         uint32_t seq = buf[4] | (buf[5] << 8) | (buf[6] << 16) | ((uint32_t)buf[7] << 24);
@@ -559,13 +576,15 @@ static void process_port(output_t *st, uint16_t port_id, uint8_t *buf, unsigned 
         len -= 8;
         hdrlen -= 8;
 
+        //Check to make sure the sequence number is valid.
         if (seq >= MAX_LOT_FRAGMENTS)
         {
             log_warn("sequence too large (%d)", seq);
             return;
         }
 
-        aas_file_t *file = find_lot(port, lot);
+        //Find or create the lot we will write to.
+        nrsc5_aas_file_t *file = find_lot(port, lot);
         if (file == NULL)
         {
             file = find_free_lot(port);
@@ -574,6 +593,7 @@ static void process_port(output_t *st, uint16_t port_id, uint8_t *buf, unsigned 
         }
         file->timestamp = counter++;
 
+        //Seqeunce number zero is special, as it contains a header and the filename.
         if (seq == 0)
         {
             if (hdrlen < 16)
@@ -602,12 +622,14 @@ static void process_port(output_t *st, uint16_t port_id, uint8_t *buf, unsigned 
             log_debug("File %s, size %d, lot %d, port %04X, mime %08X", file->name, file->size, file->lot, port->port, file->mime);
         }
 
+        //Sanity check hdrlen.
         if (hdrlen != 0)
         {
             log_warn("unexpected hdrlen (port %04X, hdrlen %d)", port_id, hdrlen);
             break;
         }
 
+        //If we don't have this fragment, allocate a buffer, copy data in, and set it.
         if (!file->fragments[seq])
         {
             uint8_t *fragment = calloc(LOT_FRAGMENT_SIZE, 1);
@@ -620,8 +642,13 @@ static void process_port(output_t *st, uint16_t port_id, uint8_t *buf, unsigned 
             file->fragments[seq] = fragment;
         }
 
+        //Report lot progress
+        nrsc5_report_lot_progress(st->radio, port->port, lot, seq, file);
+
+        //If we know the size of the file, determine if it is fully complete.
         if (file->size)
         {
+            //Calculate the number of target fragments based on the size of the file. Then, loop through fragments array and see if they are all present.
             int complete = 1;
             int num_fragments = (file->size + LOT_FRAGMENT_SIZE - 1) / LOT_FRAGMENT_SIZE;
             for (int i = 0; i < num_fragments; i++)
@@ -634,10 +661,15 @@ static void process_port(output_t *st, uint16_t port_id, uint8_t *buf, unsigned 
             }
             if (complete)
             {
+                //Allocate a temporary buffer and copy all file fragments into it to form the complete file.
                 uint8_t *data = malloc(num_fragments * LOT_FRAGMENT_SIZE);
                 for (int i = 0; i < num_fragments; i++)
                     memcpy(data + i * LOT_FRAGMENT_SIZE, file->fragments[i], LOT_FRAGMENT_SIZE);
+
+                //Send out the event.
                 nrsc5_report_lot(st->radio, port->port, file->lot, file->size, file->mime, file->name, data);
+
+                //Free the buffer and the lot to ckean up.
                 free(data);
                 aas_free_lot(file);
             }
