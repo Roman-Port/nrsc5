@@ -135,7 +135,8 @@ enum
     NRSC5_EVENT_ID3,
     NRSC5_EVENT_SIG,
     NRSC5_EVENT_LOT,
-    NRSC5_EVENT_SIS
+    NRSC5_EVENT_SIS,
+    NRSC5_EVENT_LOT_PROGRESS
 };
 
 enum
@@ -263,6 +264,7 @@ struct nrsc5_event_t
  * - `NRSC5_EVENT_SIG` : service information arrived, see `sig` member
  * - `NRSC5_EVENT_LOT` : LOT file data available, see `lot` member
  * - `NRSC5_EVENT_SIS` : station information, see `sis` member
+ * - `NRSC5_EVENT_LOT_PROGRESS` : LOT file is in progress and currently being received.
  */
     unsigned int event;
     union
@@ -328,6 +330,18 @@ struct nrsc5_event_t
             nrsc5_sis_asd_t *audio_services;
             nrsc5_sis_dsd_t *data_services;
         } sis;
+        struct {
+            uint16_t port;                // The port this fragment arrived in.
+            uint32_t lot;                 // The LOT ID of this fragment.
+            uint32_t seq;                 // Sequence number of this fragment, starting at 0.
+
+            const uint8_t* fragment_data; // Payload of this fragment.
+            uint32_t fragment_size;       // Size of this fragment's data and the "fragment_data" property.
+
+            const char* lot_name;         // Pointer to the name of the LOT. May not have been received yet, in which case this value will be NULL.
+            uint32_t lot_mime;            // MIME type hash for this LOT. May not have been received yet, in which case this value will be 0.
+            uint32_t lot_size;            // Size of this LOT in bytes. May not have been received yet, in which case this value will be 0.
+        } lot_progress;
     };
 };
 /**

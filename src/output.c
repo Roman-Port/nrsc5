@@ -542,11 +542,14 @@ static void process_port(output_t *st, uint16_t port_id, uint8_t *buf, unsigned 
     }
     case AAS_TYPE_LOT:
     {
+        //Check length
         if (len < 8)
         {
             log_warn("bad fragment (port %04X, len %d)", port_id, len);
             return;
         }
+
+        //Gather some info from the header, check it, and update offsets
         uint8_t hdrlen = buf[0];
         uint16_t lot = buf[2] | (buf[3] << 8);
         uint32_t seq = buf[4] | (buf[5] << 8) | (buf[6] << 16) | ((uint32_t)buf[7] << 24);
@@ -559,12 +562,14 @@ static void process_port(output_t *st, uint16_t port_id, uint8_t *buf, unsigned 
         len -= 8;
         hdrlen -= 8;
 
+        //Do some checks
         if (seq >= MAX_LOT_FRAGMENTS)
         {
             log_warn("sequence too large (%d)", seq);
             return;
         }
 
+        //Find the file to store info in, or create a new one.
         aas_file_t *file = find_lot(port, lot);
         if (file == NULL)
         {
@@ -574,6 +579,7 @@ static void process_port(output_t *st, uint16_t port_id, uint8_t *buf, unsigned 
         }
         file->timestamp = counter++;
 
+        //Seq 0 is special, as it contains a header with some additional important file info.
         if (seq == 0)
         {
             if (hdrlen < 16)
@@ -602,12 +608,17 @@ static void process_port(output_t *st, uint16_t port_id, uint8_t *buf, unsigned 
             log_debug("File %s, size %d, lot %d, port %04X, mime %08X", file->name, file->size, file->lot, port->port, file->mime);
         }
 
+        //The header should be fully parsed by now, if not error out.
         if (hdrlen != 0)
         {
             log_warn("unexpected hdrlen (port %04X, hdrlen %d)", port_id, hdrlen);
             break;
         }
 
+        //Fire progress event
+        nrsc5_report_lot_progress(st->radio, port->port, lot, seq, buf, len, file->name, file->size, file->mime);
+
+        //If this fragment isn't already received, allocate a buffer and copy data into it.
         if (!file->fragments[seq])
         {
             uint8_t *fragment = calloc(LOT_FRAGMENT_SIZE, 1);
@@ -620,6 +631,7 @@ static void process_port(output_t *st, uint16_t port_id, uint8_t *buf, unsigned 
             file->fragments[seq] = fragment;
         }
 
+        //If we have the size, determine if the file is completely received.
         if (file->size)
         {
             int complete = 1;

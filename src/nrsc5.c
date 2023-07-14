@@ -654,6 +654,22 @@ void nrsc5_report_lot(nrsc5_t *st, uint16_t port, unsigned int lot, unsigned int
     nrsc5_report(st, &evt);
 }
 
+void nrsc5_report_lot_progress(nrsc5_t* st, uint16_t port, uint32_t lot, uint32_t seq, const uint8_t* fragment_data, uint32_t fragment_size, const char* lot_name, uint32_t lot_size, uint32_t lot_mime)
+{
+    nrsc5_event_t evt;
+
+    evt.event = NRSC5_EVENT_LOT_PROGRESS;
+    evt.lot_progress.port = port;
+    evt.lot_progress.lot = lot;
+    evt.lot_progress.seq = seq;
+    evt.lot_progress.fragment_data = fragment_data;
+    evt.lot_progress.fragment_size = fragment_size;
+    evt.lot_progress.lot_name = lot_name;
+    evt.lot_progress.lot_mime = lot_mime;
+    evt.lot_progress.lot_size = lot_size;
+    nrsc5_report(st, &evt);
+}
+
 static uint8_t convert_sig_component_type(uint8_t type)
 {
     switch (type)

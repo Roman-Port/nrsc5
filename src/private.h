@@ -48,6 +48,7 @@ void nrsc5_report_ber(nrsc5_t *, float cber);
 void nrsc5_report_hdc(nrsc5_t *, unsigned int program, const uint8_t *data, size_t count);
 void nrsc5_report_audio(nrsc5_t *, unsigned int program, const int16_t *data, size_t count);
 void nrsc5_report_lot(nrsc5_t *, uint16_t port, unsigned int lot, unsigned int size, uint32_t mime, const char *name, const uint8_t *data);
+void nrsc5_report_lot_progress(nrsc5_t *, uint16_t port, uint32_t lot, uint32_t seq, const uint8_t* fragment_data, uint32_t fragment_size, const char* lot_name, uint32_t lot_size, uint32_t lot_mime);
 void nrsc5_report_sig(nrsc5_t *, sig_service_t *services, unsigned int count);
 void nrsc5_report_sis(nrsc5_t *, const char *country_code, int fcc_facility_id, const char *name,
                       const char *slogan, const char *message, const char *alert,
